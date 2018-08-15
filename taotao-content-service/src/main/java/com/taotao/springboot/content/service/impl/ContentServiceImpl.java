@@ -9,7 +9,7 @@ import com.taotao.springboot.content.domain.pojo.TbContentExample;
 import com.taotao.springboot.content.domain.result.EasyUIDataGridResult;
 import com.taotao.springboot.content.domain.result.TaotaoResult;
 import com.taotao.springboot.content.service.ContentService;
-import com.taotao.springboot.content.service.jedis.JedisClient;
+import com.taotao.springboot.content.service.cache.CacheService;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,7 +37,7 @@ public class ContentServiceImpl implements ContentService {
     private TbContentMapper contentMapper;
 
     @Autowired
-    private JedisClient jedisClient;
+    private CacheService cacheService;
 
     @Value("${INDEX_CONTENT}")
     private String INDEX_CONTENT;
@@ -47,27 +47,26 @@ public class ContentServiceImpl implements ContentService {
 
     @Override
     public TaotaoResult addContent(TbContent content) {
-        // 补全POJO属性
+        // #1 补全属性
         content.setCreated( new Date());
         content.setUpdated(new Date());
-        // 插入到内容表
+        // #2 插入，并同步缓存（即删除对应的缓存信息）
         contentMapper.insert(content);
-        // 同步缓存，即删除对应的缓存信息
-        jedisClient.hdel(INDEX_CONTENT, content.getCategoryId().toString());
+        cacheService.hdel(INDEX_CONTENT, content.getCategoryId().toString());
         return TaotaoResult.ok();
     }
 
     @Override
     @Transactional(propagation = Propagation.SUPPORTS, readOnly = true)
     public EasyUIDataGridResult getContentList(long categoryId, int page, int rows) {
-        // 设置分页条件
+        // #1 设置分页条件
         PageHelper.startPage(page, rows);
-        // 执行查询
+        // #2 根据内容分类ID查询内容列表
         TbContentExample contentExample = new TbContentExample();
         TbContentExample.Criteria criteria = contentExample.createCriteria();
         criteria.andCategoryIdEqualTo(categoryId);
         List<TbContent> contentList = contentMapper.selectByExample(contentExample);
-        // 获取查询结果
+        // #3 获取查询结果，并封装
         PageInfo<TbContent> pageInfo = new PageInfo<>(contentList);
         EasyUIDataGridResult result = new EasyUIDataGridResult();
         result.setTotal(pageInfo.getTotal());
@@ -78,33 +77,29 @@ public class ContentServiceImpl implements ContentService {
     @Override
     @Transactional(propagation = Propagation.SUPPORTS, readOnly = true)
     public List<TbContent> getContentByCid(long categoryId) {
-        // 首先，查询缓存，而添加缓存不能影响正常业务逻辑
+        // #1 查询缓存
         try {
-            // 查询缓存
-            String json = jedisClient.hget(INDEX_CONTENT, categoryId + "");
-            // 查询到结果，把JSON转换成List返回
+            String json = cacheService.hget(INDEX_CONTENT, categoryId + "");
+            // 若查询到缓存数据，则将JSON转换成List返回
             if (StringUtils.isNotBlank(json)) {
-                List<TbContent> list = JacksonUtils.jsonToList(json, TbContent.class);
-                return list;
+                return JacksonUtils.jsonToList(json, TbContent.class);
             }
         } catch(Exception e) {
             e.printStackTrace();
         }
-        // 若缓存没有命中，则查询数据库
+        // #3 若缓存没有命中，则查询数据库
         TbContentExample example = new TbContentExample();
         TbContentExample.Criteria criteria = example.createCriteria();
-        //设置查询条件
         criteria.andCategoryIdEqualTo(categoryId);
-        // 执行查询
         List<TbContent> list = contentMapper.selectByExample(example);
-        // 把结果添加到缓存
+        // #4 将查询结果添加到缓存
         try {
-            jedisClient.hset(INDEX_CONTENT, categoryId + "", JacksonUtils.objectToJson(list));
-            jedisClient.expire(INDEX_CONTENT, TIEM_EXPIRE);//设置过期时间
+            cacheService.hset(INDEX_CONTENT, categoryId + "", JacksonUtils.objectToJson(list));
+            //设置过期时间
+            cacheService.expire(INDEX_CONTENT, TIEM_EXPIRE);
         } catch(Exception e) {
             e.printStackTrace();
         }
-        // 返回结果
         return list;
     }
 

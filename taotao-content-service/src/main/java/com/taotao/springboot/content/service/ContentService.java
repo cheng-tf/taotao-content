@@ -17,14 +17,14 @@ import java.util.List;
 public interface ContentService {
 
     /**
-     * 根据内容分类ID查询内容列表，并进行分页显示
-     */
-    EasyUIDataGridResult getContentList(long categoryId, int page, int rows);
-
-    /**
      * 添加内容
      */
     TaotaoResult addContent(TbContent content);
+
+    /**
+     * 根据内容分类ID查询内容列表，并进行分页显示
+     */
+    EasyUIDataGridResult getContentList(long categoryId, int page, int rows);
 
     /**
      * 根据内容分类ID查询内容列表

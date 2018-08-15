@@ -34,13 +34,13 @@ public class ContentCategoryServiceImpl implements ContentCategoryService {
     @Override
     @Transactional(propagation = Propagation.SUPPORTS, readOnly = true)
     public List<EasyUITreeNode> getContentCategoryList(long parentId) {
-        // 根据parentId查询子节点列表
+        // #1 根据父类目ID查询子节点列表
         TbContentCategoryExample example = new TbContentCategoryExample();
-        // 设置查询条件
+        // #2 设置查询条件，完成查询
         TbContentCategoryExample.Criteria criteria = example.createCriteria();
         criteria.andParentIdEqualTo(parentId);
-        // 执行查询
         List<TbContentCategory> list = contentCategoryMapper.selectByExample(example);
+        // #3 封装查询结果
         List<EasyUITreeNode> resultList = new ArrayList<>();
         for (TbContentCategory contentCategory : list) {
             EasyUITreeNode node = new EasyUITreeNode();
@@ -54,9 +54,8 @@ public class ContentCategoryServiceImpl implements ContentCategoryService {
 
     @Override
     public TaotaoResult addContentCategory(Long parentId, String name) {
-        // 创建POJO对象
+        // #1 创建POJO对象，补全属性
         TbContentCategory contentCategory = new TbContentCategory();
-        // 补全属性
         contentCategory.setParentId(parentId);
         contentCategory.setName(name);
         contentCategory.setStatus(1);			// 状态。可选值:1(正常),2(删除)
@@ -64,9 +63,9 @@ public class ContentCategoryServiceImpl implements ContentCategoryService {
         contentCategory.setIsParent(false);
         contentCategory.setCreated(new Date());
         contentCategory.setUpdated(new Date());
-        // 插入到数据库中
+        // #2 插入
         contentCategoryMapper.insert(contentCategory);
-        // 判断父节点的状态
+        // #3 判断父节点的状态，并更新
         TbContentCategory parent = contentCategoryMapper.selectByPrimaryKey(parentId);
         if (!parent.getIsParent()) {
             // 若父节点为叶子节点，则应改为父节点
@@ -74,7 +73,6 @@ public class ContentCategoryServiceImpl implements ContentCategoryService {
             // 更新父节点
             contentCategoryMapper.updateByPrimaryKey(parent);
         }
-        // 返回结果
         return TaotaoResult.ok(contentCategory);
     }
 
