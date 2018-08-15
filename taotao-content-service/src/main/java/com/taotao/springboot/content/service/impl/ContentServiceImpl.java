@@ -42,6 +42,9 @@ public class ContentServiceImpl implements ContentService {
     @Value("${INDEX_CONTENT}")
     private String INDEX_CONTENT;
 
+    @Value("${TIEM_EXPIRE}")
+    private Integer TIEM_EXPIRE;
+
     @Override
     public TaotaoResult addContent(TbContent content) {
         // 补全POJO属性
@@ -97,6 +100,7 @@ public class ContentServiceImpl implements ContentService {
         // 把结果添加到缓存
         try {
             jedisClient.hset(INDEX_CONTENT, categoryId + "", JacksonUtils.objectToJson(list));
+            jedisClient.expire(INDEX_CONTENT, TIEM_EXPIRE);//设置过期时间
         } catch(Exception e) {
             e.printStackTrace();
         }
